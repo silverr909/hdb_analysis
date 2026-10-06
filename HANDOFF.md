@@ -24,7 +24,6 @@ Only what's unresolved. Delete a line once it's done, don't mark it done.
 ## Open questions for the user
 
 - Towns of interest for Q2.
-- GitHub repo for `hdb_analysis` not created yet; not in `projects.txt`.
 
 ## Last session
 
