@@ -23,8 +23,17 @@ RAW_DIR = Path(__file__).resolve().parent / "data" / "raw"
 RAW_COLUMNS = {
     "rental": ["rent_approval_date", "town", "block", "street_name", "flat_type", "monthly_rent"],
     "resale": [
-        "month", "town", "flat_type", "block", "street_name", "storey_range",
-        "floor_area_sqm", "flat_model", "lease_commence_date", "remaining_lease", "resale_price",
+        "month",
+        "town",
+        "flat_type",
+        "block",
+        "street_name",
+        "storey_range",
+        "floor_area_sqm",
+        "flat_model",
+        "lease_commence_date",
+        "remaining_lease",
+        "resale_price",
     ],
 }
 
@@ -80,9 +89,7 @@ def summary(con: duckdb.DuckDBPyConnection, raw_dir: Path = RAW_DIR) -> str:
     lines = []
     for name in RAW_COLUMNS:
         date_col = DATE_COLUMN[name]
-        rows, first, last = con.execute(
-            f"SELECT count(*), min({date_col}), max({date_col}) FROM {name}"
-        ).fetchone()
+        rows, first, last = con.execute(f"SELECT count(*), min({date_col}), max({date_col}) FROM {name}").fetchone()
         lines.append(f"== {name}  ({latest_csv(raw_dir, name).name})")
         lines.append(f"rows: {rows:,}   {date_col}: {first} .. {last}")
         for col, dtype, *_ in con.execute(f"DESCRIBE {name}").fetchall():

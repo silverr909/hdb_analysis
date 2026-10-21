@@ -43,8 +43,13 @@ class DownloadTest(unittest.TestCase):
 
     def run_download(self, api: FakeApi, **kw):
         return download.download(
-            "rental", raw_dir=self.raw, today=DAY,
-            get_json=api.get_json, fetch=api.fetch, sleep=lambda s: None, **kw,
+            "rental",
+            raw_dir=self.raw,
+            today=DAY,
+            get_json=api.get_json,
+            fetch=api.fetch,
+            sleep=lambda s: None,
+            **kw,
         )
 
     def test_writes_dated_file_and_no_part_file(self):
