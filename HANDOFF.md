@@ -8,6 +8,8 @@ Only what's unresolved. Delete a line once it's done, don't mark it done.
   (empty SQL cells), README skeleton. Data loads (see `python db.py`).
 - Dataset IDs: rental `d_c9f57187485a850908655db0e8cfe651` (2021-01 onward),
   resale `d_8b84c4ee58e3cfc0ece0d773c8ca6abc` (2017-01 onward). Confirmed by user.
+- Checks: `scripts/check.py` (CI + QA gate): ruff format/lint (notebooks excluded), tests,
+  diff-cover ≥80%. Dev tools in `requirements-dev.txt` only.
 
 ## Next, in order
 
@@ -27,4 +29,4 @@ Only what's unresolved. Delete a line once it's done, don't mark it done.
 
 ## Last session
 
-2026-10-06: confirmed dataset IDs and columns, scaffolded repo, venv, download, loader.
+2026-10-22: dev standards (check.py, CI + gitleaks, one-time ruff format).
