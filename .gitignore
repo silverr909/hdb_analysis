@@ -5,3 +5,6 @@ __pycache__/
 .ipynb_checkpoints/
 .env
 .env.*
+coverage.xml
+.coverage
+.ruff_cache/

@@ -9,8 +9,10 @@ analysis SQL, pandas for results, matplotlib for charts, Jupyter for the noteboo
 
 ```
 py -3.13 -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m pip install -r requirements-dev.txt
 ```
+
+`requirements-dev.txt` = runtime + dev-only gate tools (ruff, coverage, diff-cover); not analysis deps.
 
 ## Run
 
@@ -20,15 +22,18 @@ py -3.13 -m venv .venv
 .venv/Scripts/jupyter lab notebooks/01_rental.ipynb
 ```
 
-## Test
+## Test + lint
+
+One entry point, also run by CI (`.github/workflows/ci.yml`) and the QA gate:
 
 ```
-.venv/Scripts/python -m unittest discover tests
+.venv/Scripts/python scripts/check.py [static|test|fix]
 ```
 
-## Lint
-
-None configured.
+- `static`: `ruff format --check` + `ruff check` (line length 120, `notebooks/` excluded).
+- `test`: unittest under coverage, then diff-cover ≥80% of lines changed vs `origin/main`.
+- `fix`: apply ruff format + safe fixes. A workspace hook also does this on every edit.
+- Single test: `.venv/Scripts/python -m unittest tests.test_db.<Class>.<test>`.
 
 ## Deploy
 

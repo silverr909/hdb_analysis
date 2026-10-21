@@ -3,6 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import duckdb
+
 import db
 
 RENTAL_CSV = """rent_approval_date,town,block,street_name,flat_type,monthly_rent
@@ -49,7 +51,7 @@ class DbTest(unittest.TestCase):
 
     def test_bad_rent_fails_loudly(self):
         (self.raw / "rental_2026-10-07.csv").write_text(RENTAL_CSV + "2026-09,BEDOK,1,X,3-ROOM,n/a\n", encoding="utf-8")
-        with self.assertRaises(Exception):
+        with self.assertRaises(duckdb.ConversionException):
             db.connect(self.raw, tables=("rental",))
 
     def test_summary_lists_both_tables(self):

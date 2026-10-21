@@ -1,0 +1,5 @@
+-r requirements.txt
+# dev only: lint + test gate (scripts/check.py)
+ruff==0.17.1
+coverage==7.16.2
+diff-cover==10.6.0
