@@ -18,6 +18,10 @@ Only what's unresolved. Delete a line once it's done, don't mark it done.
 2. Q2: user names 3-4 towns of interest first.
 3. Q3, Q4. Then README findings with charts inline and "what I'd do next".
 4. Resale: stretch only, after Q1-Q4.
+5. Test standard (`.claude/testing.md`), independent of Q1-Q4: `/quick` port of the
+   `test-hygiene` step from `_template/scripts/check.py` (unittest runner, no junit: no
+   slow-test budget; this check.py differs: TARGETS ".", no mypy/imports), gate GREEN, then
+   `/audit hdb_analysis tests`.
 
 ## Mid-flight
 
