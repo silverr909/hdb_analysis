@@ -30,8 +30,10 @@ One entry point, also run by CI (`.github/workflows/ci.yml`) and the QA gate:
 .venv/Scripts/python scripts/check.py [static|test|fix]
 ```
 
-- `static`: `ruff format --check` + `ruff check` (line length 120, `notebooks/` excluded).
-- `test`: unittest under coverage, then diff-cover ≥80% of lines changed vs `origin/main`.
+- `static`: `ruff format --check` + `ruff check` (line length 120, `notebooks/` excluded),
+  test-hygiene (`.claude/testing.md` rules on test lines added vs `origin/main`).
+- `test`: unittest under coverage, coverage.xml, then diff-cover ≥80% of lines changed vs
+  `origin/main`. No slow-test budget (unittest writes no junit report).
 - `fix`: apply ruff format + safe fixes. A workspace hook also does this on every edit.
 - Single test: `.venv/Scripts/python -m unittest tests.test_db.<Class>.<test>`.
 
@@ -45,6 +47,7 @@ None. Public GitHub repo is the deliverable.
 `db.py` — `connect()` loads newest raw CSV per dataset into DuckDB tables `rental`, `resale` with explicit types.
 `notebooks/01_rental.ipynb` — Q1-Q4: SQL cell, chart cell (`save()` to `charts/`), finding.
 `tests/` — unittest, no network (fake API, tmp CSVs).
+`scripts/check.py` — check config (`check_core.Config`); `scripts/check_core.py` — check logic, generated from general_ai `_template`: do not edit.
 
 ## Conventions
 
