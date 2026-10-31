@@ -300,8 +300,8 @@ def serial_times(keys):
 
 
 def slow_tests():
-    """Return code: 1 if a test not marked slow ran over slow_test_s, also when re-run serially
-    (a parallel run on a loaded machine alone does not fail)."""
+    """Return code: 1 if a test not marked slow ran over slow_test_s. After a parallel (xdist)
+    run only if still over when re-run serially (machine load alone does not fail)."""
     if CFG.runner == "unittest":
         print("skipped: unittest runner writes no junit report")
         return 0
@@ -322,15 +322,20 @@ def slow_tests():
                             cwd=ROOT, capture_output=True, text=True, encoding="utf-8").stdout
     marked = {node_key(ln.strip()) for ln in listed.splitlines() if "::" in ln}
     over = [(t, key) for t, key in slow if key not in marked]
-    serial = serial_times([key for _, key in over]) if over else {}
+    parallel = has_module("xdist")  # without it the first run already was serial
+    serial = serial_times([key for _, key in over]) if over and parallel else {}
     failed = 0
     for t, key in over:
-        s = serial.get(key)
-        still = s is None or s > budget
+        if parallel:
+            s = serial.get(key)
+            still = s is None or s > budget
+            times = f"{t:.1f}s parallel, " + ("no serial result" if s is None
+                                              else f"{s:.1f}s serial")
+        else:
+            still, times = True, f"{t:.1f}s serial"
         failed += still
         verdict = (f"over {budget}s, speed it up or mark it slow" if still
                    else "under budget serially: machine load, passed")
-        times = f"{t:.1f}s parallel, " + ("no serial result" if s is None else f"{s:.1f}s serial")
         print(f"{times}: {key[0]}::{key[1]}: {verdict}")
     print(f"{failed} slow test(s)" if failed else "OK")
     return 1 if failed else 0
