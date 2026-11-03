@@ -257,11 +257,20 @@ def test_hygiene():
     return 1 if problems else 0
 
 
+def strip_group(name):
+    """`test_y[p]@g` -> `test_y[p]`: drop the `@<group>` xdist `--dist loadgroup` appends.
+    An `@` inside the params (`test_y[a@b]`) stays."""
+    at = name.rfind("@")
+    if at < 0 or ("[" in name and at < name.rfind("]")):
+        return name
+    return name[:at]
+
+
 def node_key(nodeid):
     """`tests/a/test_x.py::Cls::test_y[p]` -> ('tests.a.test_x.Cls', 'test_y[p]') (junit)."""
     parts = nodeid.split("::")
     module = parts[0].removesuffix(".py").replace("/", ".")
-    return ".".join([module, *parts[1:-1]]), parts[-1]
+    return ".".join([module, *parts[1:-1]]), strip_group(parts[-1])
 
 
 def node_id(classname, name):
@@ -276,10 +285,12 @@ def node_id(classname, name):
 
 
 def junit_times(path):
-    """{(classname, name): call seconds} of a junit report; {} when missing or broken."""
+    """{(classname, name without xdist @group): call seconds} of a junit report; {} when
+    missing or broken."""
     try:
         cases = ET.parse(path).iter("testcase")
-        return {(tc.get("classname", ""), tc.get("name", "")): float(tc.get("time") or 0)
+        return {(tc.get("classname", ""), strip_group(tc.get("name", ""))):
+                float(tc.get("time") or 0)
                 for tc in cases}
     except (OSError, ET.ParseError):
         return {}
