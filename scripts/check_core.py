@@ -86,12 +86,14 @@ def has_module(name):
 
 
 def pytest_args():
-    xdist = ["-n", "auto"] if has_module("xdist") else []
+    # loadgroup: tests sharing an `xdist_group` mark run on one worker; unmarked: as `load`.
+    xdist = ["-n", "auto", "--dist", "loadgroup"] if has_module("xdist") else []
+    tb = "--tb=short" if os.environ.get("CI") else "--tb=line"
     JUNIT.parent.mkdir(exist_ok=True)
     JUNIT.unlink(missing_ok=True)
     cov = f"--cov={CFG.package}" if CFG.package else "--cov"
     # Call phase only: a shared fixture's setup lands on whichever test uses it first.
-    return [PY, "-m", "pytest", "-q", *xdist, "--tb=line", f"--junitxml={JUNIT}",
+    return [PY, "-m", "pytest", "-q", *xdist, tb, f"--junitxml={JUNIT}",
             "-o", "junit_duration_report=call", cov, "--cov-report=xml"]
 
 
@@ -318,7 +320,11 @@ def slow_tests():
         print("OK")
         return 0
     no_cov = ["--no-cov"] if has_module("pytest_cov") else []
-    listed = subprocess.run([PY, "-m", "pytest", "--collect-only", "-q", "-m", "slow", *no_cov],
+    # Collect only the over-budget tests; any unresolved id: whole suite (matched by node_key).
+    ids = [i for i in (node_id(*k) for _, k in slow) if i]
+    narrow = ids if len(ids) == len(slow) else []
+    listed = subprocess.run([PY, "-m", "pytest", "--collect-only", "-q", "-m", "slow", *no_cov,
+                             *narrow],
                             cwd=ROOT, capture_output=True, text=True, encoding="utf-8").stdout
     marked = {node_key(ln.strip()) for ln in listed.splitlines() if "::" in ln}
     over = [(t, key) for t, key in slow if key not in marked]
