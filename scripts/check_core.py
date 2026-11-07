@@ -9,7 +9,7 @@ which holds the project's Config and calls main() here.
   python scripts/check.py fix       apply ruff format + safe ruff fixes, then exit
 
 Stdlib only. Every tool runs with this interpreter (local .venv or CI python), with
-PYTHONIOENCODING=utf-8. Exit 0 only when every step passed.
+PYTHONIOENCODING=utf-8 and Config.env. Exit 0 only when every step passed.
 Diff-coverage base: origin/main, moved past unpushed commits listed in
 .git-blame-ignore-revs (style-only) that sit directly on top of it. CHECK_DIFF_BASE=<ref>
 overrides it.
@@ -57,6 +57,8 @@ class Config:
     diff_fail_under: int = 80  # % of changed lines covered
     slow_test_s: float = 5.0  # call phase of one test (fixture setup not counted)
     extra_tests: list[Tool] = field(default_factory=list)  # after tests, before slow-tests
+    # Extra environment of every tool this module runs: [("NAME", "value"), ...].
+    env: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.runner not in RUNNERS:
@@ -79,6 +81,11 @@ def tool(name):
     """Console script installed next to this interpreter (venv Scripts/ or bin/)."""
     found = shutil.which(name, path=str(Path(PY).parent))
     return found or name
+
+
+def tool_env():
+    """Environment of every tool: os.environ, PYTHONIOENCODING=utf-8, then Config.env."""
+    return {**os.environ, "PYTHONIOENCODING": "utf-8", **dict(CFG.env)}
 
 
 def has_module(name):
@@ -230,7 +237,8 @@ def private_access(paths):
         return set()
     r = subprocess.run([PY, "-m", "ruff", "check", "--select", "SLF001", "--output-format",
                         "json", "--exit-zero", "--no-cache", *paths],
-                       cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+                       cwd=ROOT, env=tool_env(), capture_output=True, text=True,
+                       encoding="utf-8")
     hits = set()
     for item in json.loads(r.stdout or "[]"):
         rel = Path(item["filename"]).resolve().relative_to(ROOT).as_posix()
@@ -308,7 +316,8 @@ def serial_times(keys):
     no_cov = ["--no-cov"] if has_module("pytest_cov") else []
     subprocess.run([PY, "-m", "pytest", "-q", "--tb=no", *serial, *no_random, *no_cov,
                     f"--junitxml={rerun}", "-o", "junit_duration_report=call", *ids],
-                   cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+                   cwd=ROOT, env=tool_env(), capture_output=True, text=True, encoding="utf-8",
+                   errors="replace")
     return junit_times(rerun)
 
 
@@ -336,7 +345,8 @@ def slow_tests():
     narrow = ids if len(ids) == len(slow) else []
     listed = subprocess.run([PY, "-m", "pytest", "--collect-only", "-q", "-m", "slow", *no_cov,
                              *narrow],
-                            cwd=ROOT, capture_output=True, text=True, encoding="utf-8").stdout
+                            cwd=ROOT, env=tool_env(), capture_output=True, text=True,
+                            encoding="utf-8").stdout
     marked = {node_key(ln.strip()) for ln in listed.splitlines() if "::" in ln}
     over = [(t, key) for t, key in slow if key not in marked]
     parallel = has_module("xdist")  # without it the first run already was serial
@@ -394,8 +404,8 @@ def fix_steps():
 
 def run(steps):
     """A step is an argv list, a function returning an argv list, or a check returning rc.
-    Every subprocess step runs with PYTHONIOENCODING=utf-8."""
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    Every subprocess step runs with tool_env()."""
+    env = tool_env()
     failed = []
     for name, step in steps:
         print(f"== {name}", flush=True)
