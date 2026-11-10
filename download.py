@@ -72,7 +72,7 @@ def resolve_url(dataset_id: str, get_json=_get_json, sleep=time.sleep, attempts:
 
 def download(
     name: str,
-    raw_dir: Path = RAW_DIR,
+    raw_dir: Path | None = None,
     today: dt.date | None = None,
     force: bool = False,
     get_json=_get_json,
@@ -80,6 +80,7 @@ def download(
     sleep=time.sleep,
 ) -> tuple[Path, bool]:
     """Return (path, downloaded). downloaded is False when today's file already exists."""
+    raw_dir = raw_dir or RAW_DIR
     dest = target_path(raw_dir, name, today or dt.date.today())
     if dest.exists() and not force:
         return dest, False
