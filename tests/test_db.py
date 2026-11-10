@@ -26,19 +26,27 @@ class DbTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_rental_types_and_values(self):
+    def test_connect_casts_columns_to_explicit_types(self):
+        cases = [
+            (
+                "rental",
+                ["monthly_rent"],
+                "SELECT rent_approval_date, block, monthly_rent FROM rental ORDER BY 1",
+                [(dt.date(2021, 1, 1), "105", 2000), (dt.date(2026, 9, 1), "627B", 3500)],
+            ),
+            (
+                "resale",
+                ["lease_commence_date", "resale_price"],
+                "SELECT month, floor_area_sqm, lease_commence_date, resale_price FROM resale",
+                [(dt.date(2017, 1, 1), 44.0, 1979, 232000)],
+            ),
+        ]
         con = db.connect(self.raw)
-        types = dict((r[0], r[1]) for r in con.execute("DESCRIBE rental").fetchall())
-        self.assertEqual(types["rent_approval_date"], "DATE")
-        self.assertEqual(types["block"], "VARCHAR")
-        self.assertEqual(types["monthly_rent"], "INTEGER")
-        rows = con.execute("SELECT rent_approval_date, block, monthly_rent FROM rental ORDER BY 1").fetchall()
-        self.assertEqual(rows, [(dt.date(2021, 1, 1), "105", 2000), (dt.date(2026, 9, 1), "627B", 3500)])
-
-    def test_resale_types(self):
-        con = db.connect(self.raw)
-        row = con.execute("SELECT month, floor_area_sqm, lease_commence_date, resale_price FROM resale").fetchone()
-        self.assertEqual(row, (dt.date(2017, 1, 1), 44.0, 1979, 232000))
+        for table, int_columns, select, rows in cases:
+            with self.subTest(table):
+                types = {r[0]: r[1] for r in con.execute(f"DESCRIBE {table}").fetchall()}
+                self.assertEqual({c: types[c] for c in int_columns}, dict.fromkeys(int_columns, "INTEGER"))
+                self.assertEqual(con.execute(select).fetchall(), rows)
 
     def test_latest_csv_picks_newest_date(self):
         (self.raw / "rental_2026-09-30.csv").write_text(RENTAL_CSV, encoding="utf-8")

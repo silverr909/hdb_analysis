@@ -9,7 +9,7 @@ which holds the project's Config and calls main() here.
   python scripts/check.py fix       apply ruff format + safe ruff fixes, then exit
 
 Stdlib only. Every tool runs with this interpreter (local .venv or CI python), with
-PYTHONIOENCODING=utf-8. Exit 0 only when every step passed.
+PYTHONIOENCODING=utf-8 and Config.env. Exit 0 only when every step passed.
 Diff-coverage base: origin/main, moved past unpushed commits listed in
 .git-blame-ignore-revs (style-only) that sit directly on top of it. CHECK_DIFF_BASE=<ref>
 overrides it.
@@ -57,6 +57,8 @@ class Config:
     diff_fail_under: int = 80  # % of changed lines covered
     slow_test_s: float = 5.0  # call phase of one test (fixture setup not counted)
     extra_tests: list[Tool] = field(default_factory=list)  # after tests, before slow-tests
+    # Extra environment of every tool this module runs: [("NAME", "value"), ...].
+    env: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.runner not in RUNNERS:
@@ -81,17 +83,24 @@ def tool(name):
     return found or name
 
 
+def tool_env():
+    """Environment of every tool: os.environ, PYTHONIOENCODING=utf-8, then Config.env."""
+    return {**os.environ, "PYTHONIOENCODING": "utf-8", **dict(CFG.env)}
+
+
 def has_module(name):
     return importlib.util.find_spec(name) is not None
 
 
 def pytest_args():
-    xdist = ["-n", "auto"] if has_module("xdist") else []
+    # loadgroup: tests sharing an `xdist_group` mark run on one worker; unmarked: as `load`.
+    xdist = ["-n", "auto", "--dist", "loadgroup"] if has_module("xdist") else []
+    tb = "--tb=short" if os.environ.get("CI") else "--tb=line"
     JUNIT.parent.mkdir(exist_ok=True)
     JUNIT.unlink(missing_ok=True)
     cov = f"--cov={CFG.package}" if CFG.package else "--cov"
     # Call phase only: a shared fixture's setup lands on whichever test uses it first.
-    return [PY, "-m", "pytest", "-q", *xdist, "--tb=line", f"--junitxml={JUNIT}",
+    return [PY, "-m", "pytest", "-q", *xdist, tb, f"--junitxml={JUNIT}",
             "-o", "junit_duration_report=call", cov, "--cov-report=xml"]
 
 
@@ -228,7 +237,8 @@ def private_access(paths):
         return set()
     r = subprocess.run([PY, "-m", "ruff", "check", "--select", "SLF001", "--output-format",
                         "json", "--exit-zero", "--no-cache", *paths],
-                       cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+                       cwd=ROOT, env=tool_env(), capture_output=True, text=True,
+                       encoding="utf-8")
     hits = set()
     for item in json.loads(r.stdout or "[]"):
         rel = Path(item["filename"]).resolve().relative_to(ROOT).as_posix()
@@ -255,11 +265,20 @@ def test_hygiene():
     return 1 if problems else 0
 
 
+def strip_group(name):
+    """`test_y[p]@g` -> `test_y[p]`: drop the `@<group>` xdist `--dist loadgroup` appends.
+    An `@` inside the params (`test_y[a@b]`) stays."""
+    at = name.rfind("@")
+    if at < 0 or ("[" in name and at < name.rfind("]")):
+        return name
+    return name[:at]
+
+
 def node_key(nodeid):
     """`tests/a/test_x.py::Cls::test_y[p]` -> ('tests.a.test_x.Cls', 'test_y[p]') (junit)."""
     parts = nodeid.split("::")
     module = parts[0].removesuffix(".py").replace("/", ".")
-    return ".".join([module, *parts[1:-1]]), parts[-1]
+    return ".".join([module, *parts[1:-1]]), strip_group(parts[-1])
 
 
 def node_id(classname, name):
@@ -274,10 +293,12 @@ def node_id(classname, name):
 
 
 def junit_times(path):
-    """{(classname, name): call seconds} of a junit report; {} when missing or broken."""
+    """{(classname, name without xdist @group): call seconds} of a junit report; {} when
+    missing or broken."""
     try:
         cases = ET.parse(path).iter("testcase")
-        return {(tc.get("classname", ""), tc.get("name", "")): float(tc.get("time") or 0)
+        return {(tc.get("classname", ""), strip_group(tc.get("name", ""))):
+                float(tc.get("time") or 0)
                 for tc in cases}
     except (OSError, ET.ParseError):
         return {}
@@ -295,7 +316,8 @@ def serial_times(keys):
     no_cov = ["--no-cov"] if has_module("pytest_cov") else []
     subprocess.run([PY, "-m", "pytest", "-q", "--tb=no", *serial, *no_random, *no_cov,
                     f"--junitxml={rerun}", "-o", "junit_duration_report=call", *ids],
-                   cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+                   cwd=ROOT, env=tool_env(), capture_output=True, text=True, encoding="utf-8",
+                   errors="replace")
     return junit_times(rerun)
 
 
@@ -318,8 +340,13 @@ def slow_tests():
         print("OK")
         return 0
     no_cov = ["--no-cov"] if has_module("pytest_cov") else []
-    listed = subprocess.run([PY, "-m", "pytest", "--collect-only", "-q", "-m", "slow", *no_cov],
-                            cwd=ROOT, capture_output=True, text=True, encoding="utf-8").stdout
+    # Collect only the over-budget tests; any unresolved id: whole suite (matched by node_key).
+    ids = [i for i in (node_id(*k) for _, k in slow) if i]
+    narrow = ids if len(ids) == len(slow) else []
+    listed = subprocess.run([PY, "-m", "pytest", "--collect-only", "-q", "-m", "slow", *no_cov,
+                             *narrow],
+                            cwd=ROOT, env=tool_env(), capture_output=True, text=True,
+                            encoding="utf-8").stdout
     marked = {node_key(ln.strip()) for ln in listed.splitlines() if "::" in ln}
     over = [(t, key) for t, key in slow if key not in marked]
     parallel = has_module("xdist")  # without it the first run already was serial
@@ -377,8 +404,8 @@ def fix_steps():
 
 def run(steps):
     """A step is an argv list, a function returning an argv list, or a check returning rc.
-    Every subprocess step runs with PYTHONIOENCODING=utf-8."""
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    Every subprocess step runs with tool_env()."""
+    env = tool_env()
     failed = []
     for name, step in steps:
         print(f"== {name}", flush=True)

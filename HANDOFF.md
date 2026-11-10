@@ -2,6 +2,8 @@
 
 Only what's unresolved. Delete a line once it's done, don't mark it done.
 
+Last audit: 93aab18 (tests axis only; every finding fixed in 8050916).
+
 ## Where things stand
 
 - Scaffold done: `download.py`, `db.py`, tests, notebook skeleton with Q1-Q4 sections
@@ -18,7 +20,6 @@ Only what's unresolved. Delete a line once it's done, don't mark it done.
 2. Q2: user names 3-4 towns of interest first.
 3. Q3, Q4. Then README findings with charts inline and "what I'd do next".
 4. Resale: stretch only, after Q1-Q4.
-5. Test standard (`.claude/testing.md`), independent of Q1-Q4: `/audit hdb_analysis tests`.
 
 ## Mid-flight
 
@@ -30,4 +31,4 @@ Only what's unresolved. Delete a line once it's done, don't mark it done.
 
 ## Last session
 
-2026-10-22: dev standards (check.py, CI + gitleaks, one-time ruff format).
+2026-11-10: tests audit; fixes cover the urlopen path, failed-download cleanup, retry/poll counts, `main()` with no names (`download(raw_dir=None)` -> `RAW_DIR`).
